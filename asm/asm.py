@@ -78,11 +78,7 @@ class Assembler:
             return 0
 
     def parse_line(self, line: str):
-        # Remove comments and whitespace
-        line = re.sub(r";.*", "", line).strip()
-        if not line:
-            return
-
+        if not (line := re.sub(r";.*", "", line).strip()): return
         if line.startswith("."):
             self.current_section = self.sections[line[1:].upper()]
         elif self.current_section == self.sections["DATA"]:
@@ -97,49 +93,42 @@ class Assembler:
 
     def _handle_text(self, line: str):
         tokens = line.split()
-        if not tokens:
-            return
+        if not tokens: return
 
         # Handle labels
         if tokens[0].endswith(":"):
-            label_name = tokens[0].rstrip(":")
-            self.labels[label_name] = self.current_address
+            self.labels[tokens[0].rstrip(":")] = self.current_address
             tokens = tokens[1:]
-            if not tokens:
-                return
+            if not tokens: return
 
         instruction = tokens[0].lower()
         if instruction not in INSTRUCTIONS:
-            # Check if it's just a raw value/variable reference
             self._emit(tokens[0])
             return
 
         opcode = INSTRUCTIONS[instruction]
 
         if instruction == "ldi":
-            # ldi REGISTER VALUE
             reg_code = REGISTERS[tokens[1].upper()]
             opcode = (opcode & 0b11111000) | reg_code
             self._emit(opcode)
             self._emit(tokens[2])
         elif instruction in ("push", "pop"):
-            # push/pop REGISTER
             reg_code = REGISTERS[tokens[1].upper()]
             opcode = (opcode & 0b11111000) | reg_code
             self._emit(opcode)
         elif instruction == "mov":
-            # mov DEST SRC
             dest_code = REGISTERS[tokens[1].upper()]
             src_code = REGISTERS[tokens[2].upper()]
             opcode = (opcode & 0b11111000) | src_code
             opcode = (opcode & 0b11000111) | (dest_code << 3)
             self._emit(opcode)
         else:
-            # No register arguments or operand handled elsewhere (e.g. jmp ADDR)
             self._emit(opcode)
-            if len(tokens) > 1:
-                # Many instructions take an 8-bit immediate/address
-                self._emit(tokens[1])
+            # Only emit extra byte for instructions that take an 8-bit immediate/address
+            if instruction in ("lda", "sta", "jmp", "jz", "jnz", "je", "jne", "jc", "jnc", "call", "out", "in"):
+                if len(tokens) > 1:
+                    self._emit(tokens[1])
 
     def _emit(self, value: Union[int, str]):
         if self.current_address >= MEM_SIZE:
