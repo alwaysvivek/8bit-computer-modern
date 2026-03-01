@@ -78,9 +78,13 @@ class Assembler:
             return 0
 
     def parse_line(self, line: str):
-        if not (line := re.sub(r";.*", "", line).strip()): return
+        # Remove comments and whitespace
+        line = re.sub(r";.*", "", line).strip()
+        if not line:
+            return
+
         if line.startswith("."):
-            self.current_section = self.sections.get(line[1:].upper(), self.current_section)
+            self.current_section = self.sections[line[1:].upper()]
         elif self.current_section == self.sections["DATA"]:
             self._handle_data(line)
         else:
